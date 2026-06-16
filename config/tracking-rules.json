@@ -1,0 +1,88 @@
+{
+  "classification": {
+    "projectMapping": {
+      "patterns": [
+        {
+          "pattern": "Project (\\w+)",
+          "projectCodeGroup": 1,
+          "taskType": "project-work"
+        },
+        {
+          "pattern": "Sprint (Planning|Review|Retro)",
+          "projectCode": "SCRUM",
+          "taskType": "ceremony"
+        },
+        {
+          "pattern": "(Daily Standup|Daily Scrum)",
+          "projectCode": "SCRUM",
+          "taskType": "standup"
+        },
+        {
+          "pattern": "1:1|One on One",
+          "projectCode": "ADMIN",
+          "taskType": "one-on-one"
+        }
+      ],
+      "organizerMapping": {
+        "manager@company.com": {
+          "defaultProject": "ADMIN",
+          "defaultTaskType": "management"
+        }
+      },
+      "channelMapping": {
+        "Project Falcon": "FALCON",
+        "Engineering Team": "ENG",
+        "Customer Success": "CS"
+      }
+    },
+    "exclusions": {
+      "titlePatterns": [
+        "Lunch",
+        "Break",
+        "OOO",
+        "Out of Office",
+        "Personal",
+        "Blocked"
+      ],
+      "categories": [
+        "Personal",
+        "Holiday"
+      ]
+    },
+    "billableRules": {
+      "defaultBillable": false,
+      "billablePatterns": [
+        "Client",
+        "Customer",
+        "Consulting"
+      ],
+      "nonBillablePatterns": [
+        "Internal",
+        "Team",
+        "Admin",
+        "Training"
+      ]
+    }
+  },
+  "timeAllocation": {
+    "roundingMinutes": 15,
+    "minDurationMinutes": 5,
+    "maxDurationMinutes": 480,
+    "overlapHandling": "split-proportional",
+    "lateJoinThresholdMinutes": 5,
+    "earlyLeaveThresholdMinutes": 5
+  },
+  "confidence": {
+    "thresholds": {
+      "high": 0.8,
+      "medium": 0.5,
+      "low": 0.3
+    },
+    "weights": {
+      "titleMatch": 0.4,
+      "organizerMatch": 0.2,
+      "attendeeMatch": 0.2,
+      "channelMatch": 0.2
+    }
+  }
+}

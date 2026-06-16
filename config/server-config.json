@@ -1,0 +1,23 @@
+{
+  "server": {
+    "name": "teams-timetracker-mcp",
+    "version": "1.0.0",
+    "description": "MCP server for syncing Microsoft Teams meetings to time tracking systems"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": true,
+    "prompts": true
+  },
+  "security": {
+    "requireApproval": true,
+    "auditLog": true,
+    "dryRunDefault": true
+  },
+  "features": {
+    "autoClassification": true,
+    "attendanceTracking": true,
+    "overlapDetection": true,
+    "confidenceScoring": true
+  }
+}

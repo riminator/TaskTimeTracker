@@ -7,6 +7,10 @@ package-lock.json
 .env.local
 .env.*.local
 
+# Data files
+data/
+*.json.backup
+
 # Logs
 logs/
 *.log

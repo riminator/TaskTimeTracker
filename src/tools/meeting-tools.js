@@ -1,7 +1,7 @@
 import teamsConnector from '../connectors/teams.js';
 import classificationEngine from '../rules/classification.js';
 import timeAllocationEngine from '../rules/time-allocation.js';
-import trackerConnector from '../connectors/tracker.js';
+import storageConnector from '../connectors/storage.js';
 import logger from '../utils/logger.js';
 import Joi from 'joi';
 
@@ -238,7 +238,7 @@ export const suggestTimeEntries = {
  */
 export const createTimeEntries = {
   name: 'create_time_entries',
-  description: 'Create time tracking entries in Jira from approved suggestions',
+  description: 'Create time tracking entries in local storage from approved suggestions',
   inputSchema: {
     type: 'object',
     properties: {
@@ -248,24 +248,44 @@ export const createTimeEntries = {
         items: {
           type: 'object',
           properties: {
-            issueKey: {
+            projectCode: {
               type: 'string',
-              description: 'Jira issue key (e.g., PROJ-123)'
+              description: 'Project code (e.g., PROJ, FALCON)'
+            },
+            taskType: {
+              type: 'string',
+              description: 'Task type (e.g., meeting, project-work)'
             },
             durationMinutes: {
               type: 'number',
               description: 'Duration in minutes'
             },
-            comment: {
+            description: {
               type: 'string',
-              description: 'Work log comment'
+              description: 'Entry description'
             },
-            started: {
+            startTime: {
               type: 'string',
               description: 'Start time in ISO 8601 format'
+            },
+            date: {
+              type: 'string',
+              description: 'Date in YYYY-MM-DD format'
+            },
+            billable: {
+              type: 'boolean',
+              description: 'Is this billable time?'
+            },
+            meetingId: {
+              type: 'string',
+              description: 'Source meeting ID'
+            },
+            meetingTitle: {
+              type: 'string',
+              description: 'Source meeting title'
             }
           },
-          required: ['issueKey', 'durationMinutes', 'comment']
+          required: ['projectCode', 'durationMinutes', 'description']
         }
       },
       dryRun: {
@@ -280,10 +300,16 @@ export const createTimeEntries = {
     const schema = Joi.object({
       entries: Joi.array().items(
         Joi.object({
-          issueKey: Joi.string().required(),
+          projectCode: Joi.string().required(),
+          taskType: Joi.string().optional(),
           durationMinutes: Joi.number().positive().required(),
-          comment: Joi.string().required(),
-          started: Joi.string().isoDate().optional()
+          description: Joi.string().required(),
+          startTime: Joi.string().isoDate().optional(),
+          date: Joi.string().optional(),
+          billable: Joi.boolean().optional(),
+          meetingId: Joi.string().optional(),
+          meetingTitle: Joi.string().optional(),
+          confidence: Joi.number().optional()
         })
       ).required(),
       dryRun: Joi.boolean().default(true)
@@ -291,7 +317,7 @@ export const createTimeEntries = {
 
     const validated = validateInput(schema, args);
 
-    logger.info('Executing create_time_entries', { 
+    logger.info('Executing create_time_entries', {
       count: validated.entries.length,
       dryRun: validated.dryRun
     });
@@ -306,11 +332,11 @@ export const createTimeEntries = {
       };
     }
 
-    // Initialize tracker
-    await trackerConnector.initialize();
+    // Initialize storage
+    await storageConnector.initialize();
 
     // Create entries
-    const result = await trackerConnector.batchCreateWorklogs(validated.entries);
+    const result = await storageConnector.batchCreateEntries(validated.entries);
 
     logger.audit('time_entries_created', {
       total: result.summary.total,
@@ -414,25 +440,140 @@ export const syncMeetingsToTracker = {
 };
 
 /**
- * Get available Jira projects
+ * Get time entry summary
  */
-export const getAvailableProjects = {
-  name: 'get_available_projects',
-  description: 'List all Jira projects accessible to the user',
+export const getTimeSummary = {
+  name: 'get_time_summary',
+  description: 'Get summary statistics of logged time entries',
   inputSchema: {
     type: 'object',
-    properties: {}
+    properties: {
+      startDate: {
+        type: 'string',
+        description: 'Start date in YYYY-MM-DD format'
+      },
+      endDate: {
+        type: 'string',
+        description: 'End date in YYYY-MM-DD format'
+      },
+      projectCode: {
+        type: 'string',
+        description: 'Filter by project code'
+      }
+    }
   },
   execute: async (args) => {
-    logger.info('Executing get_available_projects');
+    const schema = Joi.object({
+      startDate: Joi.string().optional(),
+      endDate: Joi.string().optional(),
+      projectCode: Joi.string().optional()
+    });
 
-    await trackerConnector.initialize();
-    const projects = await trackerConnector.getProjects();
+    const validated = validateInput(schema, args);
+
+    logger.info('Executing get_time_summary', validated);
+
+    await storageConnector.initialize();
+    const summary = await storageConnector.getSummary(validated);
 
     return {
       success: true,
-      count: projects.length,
-      projects
+      summary
+    };
+  }
+};
+
+/**
+ * Get all time entries
+ */
+export const getTimeEntries = {
+  name: 'get_time_entries',
+  description: 'Retrieve all logged time entries with optional filters',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      startDate: {
+        type: 'string',
+        description: 'Start date in YYYY-MM-DD format'
+      },
+      endDate: {
+        type: 'string',
+        description: 'End date in YYYY-MM-DD format'
+      },
+      projectCode: {
+        type: 'string',
+        description: 'Filter by project code'
+      },
+      billable: {
+        type: 'boolean',
+        description: 'Filter by billable status'
+      }
+    }
+  },
+  execute: async (args) => {
+    const schema = Joi.object({
+      startDate: Joi.string().optional(),
+      endDate: Joi.string().optional(),
+      projectCode: Joi.string().optional(),
+      billable: Joi.boolean().optional()
+    });
+
+    const validated = validateInput(schema, args);
+
+    logger.info('Executing get_time_entries', validated);
+
+    await storageConnector.initialize();
+    const entries = await storageConnector.getAllEntries(validated);
+
+    return {
+      success: true,
+      count: entries.length,
+      entries
+    };
+  }
+};
+
+/**
+ * Export time entries to CSV
+ */
+export const exportTimeEntries = {
+  name: 'export_time_entries',
+  description: 'Export time entries to CSV format',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      startDate: {
+        type: 'string',
+        description: 'Start date in YYYY-MM-DD format'
+      },
+      endDate: {
+        type: 'string',
+        description: 'End date in YYYY-MM-DD format'
+      },
+      projectCode: {
+        type: 'string',
+        description: 'Filter by project code'
+      }
+    }
+  },
+  execute: async (args) => {
+    const schema = Joi.object({
+      startDate: Joi.string().optional(),
+      endDate: Joi.string().optional(),
+      projectCode: Joi.string().optional()
+    });
+
+    const validated = validateInput(schema, args);
+
+    logger.info('Executing export_time_entries', validated);
+
+    await storageConnector.initialize();
+    const csv = await storageConnector.exportToCSV(validated);
+
+    return {
+      success: true,
+      format: 'csv',
+      data: csv
     };
   }
 };
@@ -444,7 +585,9 @@ export const meetingTools = [
   suggestTimeEntries,
   createTimeEntries,
   syncMeetingsToTracker,
-  getAvailableProjects
+  getTimeSummary,
+  getTimeEntries,
+  exportTimeEntries
 ];
 
 // Made with Bob

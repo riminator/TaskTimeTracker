@@ -1,6 +1,6 @@
 # Teams Time Tracker MCP Server
 
-An MCP (Model Context Protocol) server that automatically syncs Microsoft Teams meetings to Jira time tracking with intelligent classification and approval workflows.
+An MCP (Model Context Protocol) server that automatically tracks time from Microsoft Teams meetings with intelligent classification and local storage.
 
 ## Features
 
@@ -9,8 +9,10 @@ An MCP (Model Context Protocol) server that automatically syncs Microsoft Teams 
 - ⏱️ **Time Allocation**: Intelligent duration adjustments, rounding, and overlap resolution
 - ✅ **Approval Workflow**: Review suggestions before creating time entries
 - 📊 **Confidence Scoring**: Know which classifications need manual review
+- 💾 **Local Storage**: All data stored locally in JSON format
+- 📈 **Summary Reports**: View time breakdowns by project, date, and billability
+- 📤 **CSV Export**: Export your time entries for use in other systems
 - 🔒 **Audit Logging**: Complete audit trail of all time tracking actions
-- 🎯 **Billability Detection**: Automatic billable/non-billable classification
 
 ## Architecture
 
@@ -32,6 +34,7 @@ An MCP (Model Context Protocol) server that automatically syncs Microsoft Teams 
 │  │ • Classify   │  │ • Mappings   │            │
 │  │ • Suggest    │  │ • Docs       │            │
 │  │ • Create     │  │              │            │
+│  │ • Export     │  │              │            │
 │  └──────────────┘  └──────────────┘            │
 │                                                  │
 │  ┌──────────────────────────────────────────┐  │
@@ -41,8 +44,8 @@ An MCP (Model Context Protocol) server that automatically syncs Microsoft Teams 
          │                         │
          │                         │
 ┌────────▼────────┐       ┌────────▼────────┐
-│ Microsoft Graph │       │  Jira API       │
-│ (Teams/Calendar)│       │  (Worklogs)     │
+│ Microsoft Graph │       │  Local Storage  │
+│ (Teams/Calendar)│       │  (JSON files)   │
 └─────────────────┘       └─────────────────┘
 ```
 
@@ -52,7 +55,6 @@ An MCP (Model Context Protocol) server that automatically syncs Microsoft Teams 
 
 - Node.js 18+ (for ES modules support)
 - Microsoft 365 account with Teams access
-- Jira account with API access
 - Azure AD app registration (for Microsoft Graph API)
 
 ### Setup
@@ -74,17 +76,12 @@ npm install
    - Create a client secret
    - Note your Tenant ID, Client ID, and Client Secret
 
-3. **Configure Jira API**:
-   - Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens)
-   - Create an API token
-   - Note your Jira host URL and email
-
-4. **Create environment file**:
+3. **Create environment file**:
 ```bash
 cp .env.example .env
 ```
 
-5. **Edit `.env` with your credentials**:
+4. **Edit `.env` with your credentials**:
 ```env
 # Microsoft Graph API
 MICROSOFT_TENANT_ID=your-tenant-id
@@ -93,11 +90,6 @@ MICROSOFT_CLIENT_SECRET=your-client-secret
 
 # User Configuration
 DEFAULT_USER_EMAIL=your-email@company.com
-
-# Jira Configuration
-JIRA_HOST=https://your-company.atlassian.net
-JIRA_EMAIL=your-email@company.com
-JIRA_API_TOKEN=your-jira-api-token
 
 # Time Tracking Rules
 DEFAULT_PROJECT_CODE=GENERAL
@@ -109,7 +101,7 @@ LOG_LEVEL=info
 LOG_FILE_PATH=./logs
 ```
 
-6. **Customize classification rules** (optional):
+5. **Customize classification rules** (optional):
    - Edit `config/tracking-rules.json`
    - Add your project patterns, organizer mappings, etc.
 
@@ -132,10 +124,7 @@ Fetch calendar meetings for a date range.
 {
   "userEmail": "user@company.com",
   "startDate": "2026-06-16T00:00:00Z",
-  "endDate": "2026-06-16T23:59:59Z",
-  "includeCancelled": false,
-  "includeDeclined": false,
-  "onlineOnly": false
+  "endDate": "2026-06-16T23:59:59Z"
 }
 ```
 
@@ -147,22 +136,22 @@ Analyze meetings and generate time tracking suggestions.
   "userEmail": "user@company.com",
   "startDate": "2026-06-16T00:00:00Z",
   "endDate": "2026-06-16T23:59:59Z",
-  "includeAttendance": false,
   "minConfidence": 0.5
 }
 ```
 
 #### 3. `create_time_entries`
-Create time entries in Jira (with approval).
+Create time entries in local storage (with approval).
 
 ```json
 {
   "entries": [
     {
-      "issueKey": "PROJ-123",
+      "projectCode": "PROJ",
       "durationMinutes": 60,
-      "comment": "Meeting: Sprint Planning",
-      "started": "2026-06-16T14:00:00Z"
+      "description": "Meeting: Sprint Planning",
+      "startTime": "2026-06-16T14:00:00Z",
+      "billable": false
     }
   ],
   "dryRun": true
@@ -177,26 +166,39 @@ End-to-end sync (fetch → classify → create).
   "userEmail": "user@company.com",
   "startDate": "2026-06-16T00:00:00Z",
   "endDate": "2026-06-16T23:59:59Z",
-  "dryRun": true,
-  "minConfidence": 0.5
+  "dryRun": true
 }
 ```
 
-#### 5. `get_meeting_attendance`
-Get detailed attendance for an online meeting.
+#### 5. `get_time_summary`
+Get summary statistics of logged time.
 
 ```json
 {
-  "userEmail": "user@company.com",
-  "meetingId": "meeting-id-here"
+  "startDate": "2026-06-16",
+  "endDate": "2026-06-22"
 }
 ```
 
-#### 6. `get_available_projects`
-List all accessible Jira projects.
+#### 6. `get_time_entries`
+Retrieve all logged time entries with filters.
 
 ```json
-{}
+{
+  "startDate": "2026-06-16",
+  "projectCode": "PROJ",
+  "billable": true
+}
+```
+
+#### 7. `export_time_entries`
+Export time entries to CSV format.
+
+```json
+{
+  "startDate": "2026-06-01",
+  "endDate": "2026-06-30"
+}
 ```
 
 ### Available Resources
@@ -226,6 +228,10 @@ List all accessible Jira projects.
 5. **You review** and approve the suggestions
 
 6. **Bob uses** `create_time_entries` with `dryRun: false` to create entries
+
+7. **Later, you can** use `get_time_summary` to see your weekly totals
+
+8. **Export** with `export_time_entries` to import into other systems
 
 ### Using Prompts
 
@@ -279,6 +285,40 @@ Meetings are automatically excluded if:
 - **Low (≥0.3)**: Weak match, manual review required
 - **Very Low (<0.3)**: Default fallback, needs attention
 
+## Data Storage
+
+All time entries are stored locally in `data/time-entries.json`:
+
+```json
+{
+  "entries": [
+    {
+      "id": "entry_1234567890_abc123",
+      "projectCode": "PROJ",
+      "taskType": "meeting",
+      "durationMinutes": 60,
+      "date": "2026-06-16",
+      "startTime": "2026-06-16T14:00:00Z",
+      "description": "Meeting: Sprint Planning",
+      "meetingId": "meeting-id",
+      "meetingTitle": "Sprint Planning",
+      "billable": false,
+      "confidence": 0.85,
+      "createdAt": "2026-06-16T14:30:00Z",
+      "status": "logged"
+    }
+  ]
+}
+```
+
+### Backup Your Data
+
+The `data/` directory contains all your time tracking data. Back it up regularly:
+
+```bash
+cp data/time-entries.json data/time-entries.backup.json
+```
+
 ## Customization
 
 ### Adding Project Patterns
@@ -314,30 +354,16 @@ Edit `config/tracking-rules.json`:
 }
 ```
 
-### Adjusting Time Allocation
-
-```json
-{
-  "timeAllocation": {
-    "roundingMinutes": 15,
-    "minDurationMinutes": 5,
-    "maxDurationMinutes": 480,
-    "overlapHandling": "split-proportional"
-  }
-}
-```
-
 ## Security & Privacy
 
 ### Data Handling
-- No meeting data is stored permanently
-- All processing happens in-memory
+- All data stored locally in `data/` directory
+- No external services except Microsoft Graph
 - Audit logs record actions, not content
 - Credentials stored in environment variables only
 
 ### Permissions Required
 - **Microsoft Graph**: Read calendar and meeting data
-- **Jira**: Create and read worklogs
 - No write access to calendars or meetings
 
 ### Approval Workflow
@@ -362,11 +388,6 @@ Edit `config/tracking-rules.json`:
 - Needs tenant admin consent for attendance reports
 - Falls back to scheduled duration if unavailable
 
-### Authentication errors
-- Verify Azure AD app credentials
-- Check API permissions are granted
-- Ensure client secret hasn't expired
-
 ## Logs
 
 Logs are written to the `logs/` directory:
@@ -388,7 +409,7 @@ TaskTimeTracker/
 │   │   └── graph-client.js      # Microsoft Graph authentication
 │   ├── connectors/
 │   │   ├── teams.js             # Teams meeting connector
-│   │   └── tracker.js           # Jira time tracker connector
+│   │   └── storage.js           # Local JSON storage
 │   ├── rules/
 │   │   ├── classification.js    # Meeting classification engine
 │   │   └── time-allocation.js   # Time allocation engine
@@ -399,9 +420,9 @@ TaskTimeTracker/
 │   ├── utils/
 │   │   └── logger.js            # Winston logger
 │   └── server.js                # Main MCP server
+├── data/                        # Time entries (created at runtime)
 ├── logs/                        # Log files (created at runtime)
-├── .env                         # Environment variables (create from .env.example)
-├── .env.example                 # Environment template
+├── .env                         # Environment variables
 ├── package.json                 # Dependencies
 └── README.md                    # This file
 ```
@@ -425,10 +446,3 @@ Contributions welcome! Please:
 2. Create a feature branch
 3. Make your changes
 4. Submit a pull request
-
-## Support
-
-For issues or questions:
-- Check the logs in `logs/` directory
-- Review the documentation resources via MCP
-- Open an issue on GitHub

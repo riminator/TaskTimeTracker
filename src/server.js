@@ -11,6 +11,8 @@ import {
 import dotenv from 'dotenv';
 import logger from './utils/logger.js';
 import { meetingTools } from './tools/meeting-tools.js';
+import { manualTools } from './tools/manual-tools.js';
+import { importTools } from './tools/import-tools.js';
 import { documentationResources } from './resources/documentation.js';
 import fs from 'fs';
 import path from 'path';
@@ -263,7 +265,20 @@ class TeamsTimeTrackerServer {
   registerTools() {
     logger.info('Registering tools');
     
+    // Register Teams integration tools
     for (const tool of meetingTools) {
+      this.tools.set(tool.name, tool);
+      logger.info('Registered tool', { name: tool.name });
+    }
+    
+    // Register manual/hybrid tools
+    for (const tool of manualTools) {
+      this.tools.set(tool.name, tool);
+      logger.info('Registered tool', { name: tool.name });
+    }
+    
+    // Register import tools
+    for (const tool of importTools) {
       this.tools.set(tool.name, tool);
       logger.info('Registered tool', { name: tool.name });
     }

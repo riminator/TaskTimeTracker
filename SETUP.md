@@ -1,152 +1,82 @@
 # Setup Guide - Teams Time Tracker MCP Server
 
-This guide walks you through setting up the Teams Time Tracker MCP server from scratch.
+This guide walks you through setting up the Teams Time Tracker MCP server. **Choose your setup path based on your access level.**
 
-## Prerequisites Checklist
+## Choose Your Setup Path
 
-- [ ] Node.js 18 or higher installed
-- [ ] Microsoft 365 account with Teams access
-- [ ] Jira account with admin or time tracking permissions
-- [ ] Azure Portal access (for app registration)
-- [ ] Atlassian account access (for API token)
+### Path 1: Full Automation (Requires Azure AD)
+- ✅ Automatic Teams meeting sync
+- ✅ Real-time calendar integration
+- ✅ Attendance tracking
+- ❌ Requires Azure AD app registration
+- ❌ May need IT admin approval
 
-## Step 1: Azure AD App Registration
+**→ Follow: [Azure AD Setup](#azure-ad-setup-full-automation)**
 
-### 1.1 Create App Registration
+### Path 2: Hybrid Mode (No Azure AD Required) ⭐ RECOMMENDED
+- ✅ Manual meeting entry or calendar file import
+- ✅ Same smart classification
+- ✅ All reporting features
+- ✅ No IT approval needed
+- ✅ Works immediately
 
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to **Azure Active Directory** → **App registrations**
-3. Click **New registration**
-4. Fill in:
-   - **Name**: `Teams Time Tracker MCP`
-   - **Supported account types**: `Accounts in this organizational directory only`
-   - **Redirect URI**: Leave blank (not needed for daemon apps)
-5. Click **Register**
+**→ Follow: [Hybrid Setup](#hybrid-setup-no-azure-ad)**
 
-### 1.2 Note Your IDs
+### Path 3: OpenShift Deployment
+- ✅ Deploy to enterprise cluster
+- ✅ Persistent storage
+- ✅ Scalable
+- ✅ Works with or without Azure AD
 
-After registration, note these values:
-- **Application (client) ID**: Found on the Overview page
-- **Directory (tenant) ID**: Found on the Overview page
+**→ Follow: [OPENSHIFT_DEPLOYMENT.md](OPENSHIFT_DEPLOYMENT.md)**
 
-### 1.3 Create Client Secret
+---
 
-1. Go to **Certificates & secrets**
-2. Click **New client secret**
-3. Add description: `MCP Server Secret`
-4. Set expiration: Choose appropriate duration
-5. Click **Add**
-6. **IMPORTANT**: Copy the secret value immediately (you won't see it again)
+## Hybrid Setup (No Azure AD)
 
-### 1.4 Configure API Permissions
+This is the **easiest and fastest** way to get started. No Azure AD, no IT approval needed.
 
-1. Go to **API permissions**
-2. Click **Add a permission**
-3. Select **Microsoft Graph**
-4. Select **Application permissions** (not Delegated)
-5. Add these permissions:
-   - `Calendars.Read`
-   - `OnlineMeetings.Read`
-   - `User.Read.All`
-6. Click **Add permissions**
-7. Click **Grant admin consent** (requires admin role)
-8. Confirm the consent
+### Prerequisites
 
-### 1.5 Verify Permissions
+- Node.js 18+ installed
+- 10 minutes
 
-Ensure all permissions show "Granted for [Your Organization]" in green.
-
-## Step 2: Jira API Token
-
-### 2.1 Create API Token
-
-1. Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens)
-2. Click **Create API token**
-3. Label: `Teams Time Tracker MCP`
-4. Click **Create**
-5. Copy the token (you won't see it again)
-
-### 2.2 Note Your Jira Details
-
-You'll need:
-- **Jira Host**: `https://your-company.atlassian.net`
-- **Email**: Your Jira account email
-- **API Token**: The token you just created
-
-### 2.3 Verify Permissions
-
-Ensure your Jira account has:
-- Permission to log work on issues
-- Access to the projects you want to track time for
-
-## Step 3: Install the Server
-
-### 3.1 Clone or Download
+### Step 1: Install
 
 ```bash
-# If using git
-git clone <repository-url>
+# Clone or download the project
 cd TaskTimeTracker
 
-# Or download and extract the ZIP
-```
-
-### 3.2 Install Dependencies
-
-```bash
+# Install dependencies
 npm install
 ```
 
-This will install:
-- `@modelcontextprotocol/sdk` - MCP protocol implementation
-- `@azure/identity` - Azure authentication
-- `@microsoft/microsoft-graph-client` - Microsoft Graph API
-- `axios` - HTTP client for Jira
-- `winston` - Logging
-- `joi` - Input validation
-- `dotenv` - Environment variables
+### Step 2: Configure (Minimal)
 
-### 3.3 Create Environment File
+Create `.env` file:
 
 ```bash
 cp .env.example .env
 ```
 
-### 3.4 Configure Environment Variables
-
-Edit `.env` with your credentials:
+Edit `.env` - you only need these:
 
 ```env
-# Microsoft Graph API Configuration
-MICROSOFT_TENANT_ID=your-tenant-id-from-step-1.2
-MICROSOFT_CLIENT_ID=your-client-id-from-step-1.2
-MICROSOFT_CLIENT_SECRET=your-client-secret-from-step-1.3
+# No Microsoft credentials needed!
 
-# User Configuration
-DEFAULT_USER_EMAIL=your-email@company.com
-
-# Jira Configuration
-JIRA_HOST=https://your-company.atlassian.net
-JIRA_EMAIL=your-jira-email@company.com
-JIRA_API_TOKEN=your-jira-token-from-step-2.1
-
-# Time Tracking Rules (optional, has defaults)
+# Time Tracking Rules
 DEFAULT_PROJECT_CODE=GENERAL
 ROUNDING_MINUTES=15
 MIN_MEETING_DURATION_MINUTES=5
 
-# Logging (optional, has defaults)
+# Logging
 LOG_LEVEL=info
 LOG_FILE_PATH=./logs
 ```
 
-## Step 4: Customize Classification Rules (Optional)
+### Step 3: Customize Rules (Optional)
 
-### 4.1 Edit Tracking Rules
-
-Open `config/tracking-rules.json` and customize:
-
-#### Add Your Project Patterns
+Edit `config/tracking-rules.json` to add your project patterns:
 
 ```json
 {
@@ -160,7 +90,7 @@ Open `config/tracking-rules.json` and customize:
         },
         {
           "pattern": "YOUR-PROJECT-NAME",
-          "projectCode": "YOUR-JIRA-KEY",
+          "projectCode": "YOUR-CODE",
           "taskType": "meeting"
         }
       ]
@@ -169,99 +99,7 @@ Open `config/tracking-rules.json` and customize:
 }
 ```
 
-#### Add Organizer Mappings
-
-```json
-{
-  "organizerMapping": {
-    "your-manager@company.com": {
-      "defaultProject": "ADMIN",
-      "defaultTaskType": "management"
-    }
-  }
-}
-```
-
-#### Add Exclusion Patterns
-
-```json
-{
-  "exclusions": {
-    "titlePatterns": [
-      "Lunch",
-      "Break",
-      "Your Custom Pattern"
-    ]
-  }
-}
-```
-
-## Step 5: Test the Server
-
-### 5.1 Test Microsoft Graph Connection
-
-Create a test script `test-graph.js`:
-
-```javascript
-import graphClient from './src/auth/graph-client.js';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-async function test() {
-  try {
-    await graphClient.initialize();
-    const result = await graphClient.testConnection(process.env.DEFAULT_USER_EMAIL);
-    console.log('Graph API test:', result);
-  } catch (error) {
-    console.error('Graph API test failed:', error.message);
-  }
-}
-
-test();
-```
-
-Run it:
-```bash
-node test-graph.js
-```
-
-Expected output:
-```
-Graph API test: { success: true, user: { displayName: 'Your Name', ... } }
-```
-
-### 5.2 Test Jira Connection
-
-Create a test script `test-jira.js`:
-
-```javascript
-import trackerConnector from './src/connectors/tracker.js';
-
-async function test() {
-  try {
-    await trackerConnector.initialize();
-    const projects = await trackerConnector.getProjects();
-    console.log('Jira projects:', projects);
-  } catch (error) {
-    console.error('Jira test failed:', error.message);
-  }
-}
-
-test();
-```
-
-Run it:
-```bash
-node test-jira.js
-```
-
-Expected output:
-```
-Jira projects: [ { key: 'PROJ', name: 'Project Name', id: '10001' }, ... ]
-```
-
-### 5.3 Start the Server
+### Step 4: Start the Server
 
 ```bash
 npm start
@@ -269,197 +107,380 @@ npm start
 
 Expected output:
 ```
-2026-06-16 11:00:00 [info]: Teams Time Tracker MCP Server initialized
-2026-06-16 11:00:00 [info]: Registering tools
-2026-06-16 11:00:00 [info]: Registered tool { name: 'list_recent_meetings' }
+Teams Time Tracker MCP Server initialized
+Registering tools
+Registered tool: add_manual_meeting
+Registered tool: add_quick_entry
+Registered tool: import_calendar_file
 ...
-2026-06-16 11:00:00 [info]: Teams Time Tracker MCP Server started successfully
-2026-06-16 11:00:00 [info]: Server is ready to accept requests via stdio
+Server is ready to accept requests via stdio
 ```
 
-## Step 6: Configure MCP Client
+### Step 5: Use It!
 
-### 6.1 Claude Desktop Configuration
+#### Option A: Manual Entry
 
-If using Claude Desktop, add to your MCP settings:
+```
+You: "Bob, I had a meeting called 'Project FALCON Sprint Planning' 
+      from 2pm to 3pm today"
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Bob: [classifies the meeting]
+     Project: FALCON
+     Task Type: planning
+     Duration: 60 minutes
+     Billable: No
+     Confidence: High (0.85)
+     
+     Should I create this time entry?
 
-```json
-{
-  "mcpServers": {
-    "teams-timetracker": {
-      "command": "node",
-      "args": ["/absolute/path/to/TaskTimeTracker/src/server.js"],
-      "env": {
-        "MICROSOFT_TENANT_ID": "your-tenant-id",
-        "MICROSOFT_CLIENT_ID": "your-client-id",
-        "MICROSOFT_CLIENT_SECRET": "your-client-secret",
-        "DEFAULT_USER_EMAIL": "your-email@company.com",
-        "JIRA_HOST": "https://your-company.atlassian.net",
-        "JIRA_EMAIL": "your-jira-email@company.com",
-        "JIRA_API_TOKEN": "your-jira-token"
-      }
-    }
-  }
-}
+You: "Yes"
+
+Bob: Entry created! Total time today: 1 hour
 ```
 
-**Note**: Use absolute paths, not relative paths or `~`.
+#### Option B: Quick Entry
 
-### 6.2 Restart Claude Desktop
-
-Restart Claude Desktop to load the new MCP server configuration.
-
-### 6.3 Verify Connection
-
-In Claude Desktop, you should see the Teams Time Tracker tools available.
-
-## Step 7: First Use
-
-### 7.1 Test with a Simple Query
-
-Ask Claude:
 ```
-List my meetings for today using the Teams Time Tracker
+You: "Bob, log 30 minutes for Daily Standup"
+
+Bob: [classifies]
+     Project: SCRUM
+     Entry created!
 ```
 
-Claude should use the `list_recent_meetings` tool.
+#### Option C: Import Calendar File
 
-### 7.2 Try the Daily Review Prompt
+1. Export your Outlook calendar to .ics file:
+   - Open Outlook
+   - File → Save Calendar
+   - Choose date range
+   - Save as .ics
 
-Ask Claude:
+2. Tell Bob:
 ```
-Use the review-daily-timesheet prompt for today
+You: "Bob, import my calendar file"
+[paste file content or provide path]
+
+Bob: Parsed 23 meetings
+     Classified 18 with high confidence
+     5 need review
+     
+     Ready to create the high confidence ones?
+
+You: "Yes, and show me the ones that need review"
+
+Bob: [creates 18 entries]
+     [shows 5 for manual review]
 ```
 
-This will guide you through the full workflow.
+### Step 6: View Your Time
 
-### 7.3 Always Start with Dry Run
+```
+You: "Bob, show me my time summary for this week"
 
-When creating time entries, always use `dryRun: true` first:
-```
-Create time entries with dryRun: true
+Bob: Total: 32 hours
+     By Project:
+     - FALCON: 12 hours (8 billable)
+     - ADMIN: 8 hours (0 billable)
+     - CLIENT: 12 hours (12 billable)
+     
+     Meetings: 24
+     Average per day: 6.4 hours
+
+You: "Export to CSV"
+
+Bob: [generates CSV file]
+     Ready to import into your time tracking system!
 ```
 
-Review the output, then approve:
+### Available Tools (Hybrid Mode)
+
+**Manual Entry:**
+- `add_manual_meeting` - Add one meeting with full details
+- `add_quick_entry` - Quick entry with just title and duration
+- `import_calendar_file` - Import .ics calendar file
+- `batch_add_meetings` - Add multiple meetings at once
+
+**Viewing & Reporting:**
+- `get_time_summary` - Summary statistics
+- `get_time_entries` - List all entries with filters
+- `export_time_entries` - Export to CSV
+
+**Management:**
+- `create_time_entries` - Batch create from suggestions
+- `sync_meetings_to_tracker` - End-to-end workflow
+
+### That's It!
+
+You're ready to track time without any Azure AD setup. All your data is stored locally in `data/time-entries.json`.
+
+---
+
+## Azure AD Setup (Full Automation)
+
+If you want automatic Teams meeting sync, follow these steps.
+
+### Prerequisites
+
+- Microsoft 365 account with Teams access
+- Azure Portal access (or IT admin help)
+- 15-20 minutes
+
+### Step 1: Azure AD App Registration
+
+**Detailed guide:** See [AZURE_SETUP_GUIDE.md](AZURE_SETUP_GUIDE.md) for step-by-step instructions with screenshots.
+
+**Quick version:**
+
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Navigate to Azure Active Directory → App registrations
+3. Click "New registration"
+4. Name: `Teams Time Tracker`
+5. Click "Register"
+6. Note your **Application (client) ID** and **Directory (tenant) ID**
+7. Go to "Certificates & secrets"
+8. Create new client secret
+9. **Copy the secret value immediately** (you won't see it again!)
+10. Go to "API permissions"
+11. Add these permissions:
+    - `Calendars.Read`
+    - `OnlineMeetings.Read.All`
+    - `User.Read.All`
+12. Click "Grant admin consent"
+
+### Step 2: Install
+
+```bash
+cd TaskTimeTracker
+npm install
 ```
-Looks good, create them with dryRun: false
+
+### Step 3: Configure
+
+Create `.env` file:
+
+```bash
+cp .env.example .env
 ```
+
+Edit `.env` with your Azure AD credentials:
+
+```env
+# Microsoft Graph API Configuration
+MICROSOFT_TENANT_ID=your-tenant-id-from-step-6
+MICROSOFT_CLIENT_ID=your-client-id-from-step-6
+MICROSOFT_CLIENT_SECRET=your-client-secret-from-step-9
+
+# User Configuration
+DEFAULT_USER_EMAIL=your-email@company.com
+
+# Time Tracking Rules
+DEFAULT_PROJECT_CODE=GENERAL
+ROUNDING_MINUTES=15
+MIN_MEETING_DURATION_MINUTES=5
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE_PATH=./logs
+```
+
+### Step 4: Test Connection
+
+```bash
+npm start
+```
+
+Look for:
+```
+Microsoft Graph client initialized successfully
+Teams Time Tracker MCP Server started successfully
+```
+
+### Step 5: Use It!
+
+```
+You: "Bob, list my meetings for today"
+
+Bob: [fetches from Teams]
+     Found 5 meetings:
+     1. Daily Standup (9:00-9:15)
+     2. Project FALCON Sprint Planning (10:00-11:00)
+     ...
+
+You: "Classify them and suggest time entries"
+
+Bob: [classifies all meetings]
+     Suggested 5 entries:
+     - SCRUM: 15 min (Daily Standup)
+     - FALCON: 60 min (Sprint Planning)
+     ...
+     
+     3 high confidence, 2 need review
+
+You: "Create the high confidence ones"
+
+Bob: Created 3 entries. Total: 2.5 hours
+```
+
+### Available Tools (Full Mode)
+
+**Automatic Sync:**
+- `list_recent_meetings` - Fetch from Teams
+- `get_meeting_attendance` - Get attendance details
+- `suggest_time_entries` - Auto-classify meetings
+- `sync_meetings_to_tracker` - One-step sync
+
+**Plus all Hybrid Mode tools:**
+- Manual entry tools (for meetings not in Teams)
+- Viewing and reporting tools
+- Export tools
+
+---
 
 ## Troubleshooting
 
-### Issue: "Missing required Microsoft Graph credentials"
+### "I don't have Azure AD access"
 
-**Solution**: 
-- Verify `.env` file exists and has correct values
-- Check `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`
-- Ensure no extra spaces or quotes in `.env` values
+→ Use **Hybrid Mode** instead. Works great without Azure AD!
 
-### Issue: "Failed to initialize Microsoft Graph client"
+### "Need admin approval" error
 
-**Solution**:
-- Verify Azure AD app permissions are granted
-- Check client secret hasn't expired
-- Ensure tenant ID and client ID are correct
+Your IT department needs to approve the app. Options:
+1. Ask IT to grant consent (show them AZURE_SETUP_GUIDE.md)
+2. Use Hybrid Mode instead
+3. Use a personal Microsoft account
 
-### Issue: "Graph API connection test failed"
+### "No meetings found"
 
-**Solution**:
+**Hybrid Mode:** You need to manually add meetings or import calendar file
+
+**Full Mode:** 
+- Check date range format (ISO 8601)
 - Verify user email is correct
-- Check API permissions include `User.Read.All`
-- Ensure admin consent was granted
+- Ensure Azure AD permissions are granted
 
-### Issue: "Jira connection test failed"
+### "Low confidence classifications"
 
-**Solution**:
-- Verify Jira host URL (include `https://`)
-- Check API token is valid
-- Ensure email matches Jira account
+Add more patterns to `config/tracking-rules.json`:
 
-### Issue: "No meetings found"
+```json
+{
+  "patterns": [
+    {
+      "pattern": "Your Meeting Pattern",
+      "projectCode": "YOUR-CODE",
+      "taskType": "meeting"
+    }
+  ]
+}
+```
 
-**Solution**:
-- Verify date range is correct (ISO 8601 format)
-- Check user has meetings in that range
-- Ensure calendar permissions are granted
+### "Can't write to data directory"
 
-### Issue: "Attendance reports not available"
+```bash
+# Create data directory
+mkdir -p data logs
 
-**Solution**:
-- This is normal - attendance requires special permissions
-- Server falls back to scheduled duration
-- Not critical for basic functionality
+# Check permissions
+ls -la data/
+```
 
-### Issue: "Low confidence classifications"
-
-**Solution**:
-- Add more patterns to `config/tracking-rules.json`
-- Use organizer mapping for common organizers
-- Manually specify project codes when needed
-
-## Security Best Practices
-
-1. **Never commit `.env` file** - It contains secrets
-2. **Rotate secrets regularly** - Especially client secrets and API tokens
-3. **Use least privilege** - Only grant necessary permissions
-4. **Monitor audit logs** - Check `logs/audit.log` regularly
-5. **Review suggestions** - Always review before creating entries
-6. **Use dry run** - Test with `dryRun: true` first
+---
 
 ## Next Steps
 
-1. Customize `config/tracking-rules.json` for your organization
-2. Add your common meeting patterns
-3. Set up organizer mappings for your team
-4. Configure billability rules
-5. Test with a week of meetings
-6. Refine rules based on results
-7. Set up regular sync schedule
+### 1. Customize Classification Rules
 
-## Getting Help
+Edit `config/tracking-rules.json`:
+- Add your project patterns
+- Map organizers to projects
+- Define billability rules
 
-- Check logs in `logs/` directory
-- Review documentation resources via MCP
-- Read the main README.md
-- Check GitHub issues
+### 2. Set Up Regular Workflow
 
-## Maintenance
-
-### Regular Tasks
-
-- **Weekly**: Review audit logs
-- **Monthly**: Check for expired secrets
-- **Quarterly**: Review and update classification rules
-- **As needed**: Update dependencies with `npm update`
-
-### Updating the Server
-
-```bash
-git pull  # or download new version
-npm install  # update dependencies
-npm start  # restart server
+**Daily:**
+```
+Morning: Review yesterday's meetings
+Afternoon: Log any ad-hoc time
+Evening: Export to your company's system
 ```
 
-### Backup Configuration
+**Weekly:**
+```
+Monday: Import last week's calendar
+Review and approve all entries
+Export to CSV
+Submit to time tracking system
+```
 
-Regularly backup:
-- `.env` file (securely)
-- `config/tracking-rules.json`
-- `logs/audit.log`
+### 3. Backup Your Data
 
-## Success Criteria
+```bash
+# Backup time entries
+cp data/time-entries.json backups/entries-$(date +%Y%m%d).json
 
-You've successfully set up the server when:
+# Backup logs
+cp -r logs/ backups/logs-$(date +%Y%m%d)/
+```
 
-- [x] Server starts without errors
-- [x] Graph API connection test passes
-- [x] Jira connection test passes
-- [x] Can list meetings
-- [x] Can generate suggestions
-- [x] Can create time entries (dry run)
-- [x] Classifications match your projects
-- [x] Audit logs are being written
+### 4. Deploy to OpenShift (Optional)
 
-Congratulations! You're ready to automate your time tracking.
+See [OPENSHIFT_DEPLOYMENT.md](OPENSHIFT_DEPLOYMENT.md) for enterprise deployment.
+
+---
+
+## Comparison: Hybrid vs Full Mode
+
+| Feature | Hybrid Mode | Full Mode |
+|---------|-------------|-----------|
+| **Setup Time** | 5 minutes | 15-20 minutes |
+| **Azure AD Required** | ❌ No | ✅ Yes |
+| **IT Approval** | ❌ Not needed | ⚠️ May be needed |
+| **Automatic Sync** | ❌ Manual entry | ✅ Automatic |
+| **Calendar Import** | ✅ .ics files | ✅ Real-time |
+| **Classification** | ✅ Same rules | ✅ Same rules |
+| **Attendance Data** | ❌ No | ✅ Yes |
+| **Reporting** | ✅ Full | ✅ Full |
+| **CSV Export** | ✅ Yes | ✅ Yes |
+| **Cost** | 💰 Free | 💰 Free |
+| **Privacy** | 🔒 100% local | 🔒 Microsoft Graph |
+
+**Recommendation:** Start with Hybrid Mode. Upgrade to Full Mode later if you get Azure AD access.
+
+---
+
+## Support
+
+### Documentation
+- [README.md](README.md) - Overview and features
+- [AZURE_SETUP_GUIDE.md](AZURE_SETUP_GUIDE.md) - Detailed Azure AD setup
+- [NO_AZURE_ALTERNATIVE.md](NO_AZURE_ALTERNATIVE.md) - Hybrid mode details
+- [OPENSHIFT_DEPLOYMENT.md](OPENSHIFT_DEPLOYMENT.md) - Enterprise deployment
+
+### Common Issues
+- Check logs in `logs/` directory
+- Review `logs/error.log` for errors
+- Check `logs/audit.log` for actions
+
+### Getting Help
+1. Check troubleshooting section above
+2. Review the documentation
+3. Check your configuration files
+4. Verify all dependencies are installed
+
+---
+
+## Success Checklist
+
+- [ ] Node.js 18+ installed
+- [ ] Dependencies installed (`npm install`)
+- [ ] `.env` file configured
+- [ ] Server starts without errors
+- [ ] Can add/import meetings
+- [ ] Classifications work correctly
+- [ ] Time entries are created
+- [ ] Can view summaries
+- [ ] Can export to CSV
+- [ ] Data is backed up
+
+Congratulations! You're ready to automate your time tracking. 🎉

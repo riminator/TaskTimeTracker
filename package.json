@@ -1,7 +1,7 @@
 {
   "name": "teams-timetracker-mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for syncing Microsoft Teams meetings to time tracking systems",
+  "description": "MCP server for syncing Microsoft Teams meetings to local time tracking",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
@@ -21,7 +21,6 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@azure/identity": "^4.0.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
-    "axios": "^1.6.0",
     "dotenv": "^16.3.1",
     "winston": "^3.11.0",
     "joi": "^17.11.0"

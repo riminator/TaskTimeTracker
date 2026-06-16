@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timetracker-web
+  labels:
+    app: timetracker-web
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: timetracker-web
+  template:
+    metadata:
+      labels:
+        app: timetracker-web
+        component: frontend
+    spec:
+      containers:
+      - name: web
+        image: timetracker-web:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data-storage
+          mountPath: /app/data
+        - name: logs-storage
+          mountPath: /app/logs
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: timetracker-data-pvc
+      - name: logs-storage
+        persistentVolumeClaim:
+          claimName: timetracker-logs-pvc
+      - name: config
+        configMap:
+          name: timetracker-config
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+# Made with Bob

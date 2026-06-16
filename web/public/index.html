@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Time Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1>⏱️ Task Time Tracker</h1>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="btn btn-secondary">
+                        <span class="icon">🔄</span> Refresh
+                    </button>
+                    <button id="exportBtn" class="btn btn-primary">
+                        <span class="icon">📥</span> Export CSV
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tab-navigation">
+            <button class="tab-btn active" data-tab="dashboard">
+                <span class="icon">📊</span> Dashboard
+            </button>
+            <button class="tab-btn" data-tab="entries">
+                <span class="icon">📝</span> Time Entries
+            </button>
+            <button class="tab-btn" data-tab="manual">
+                <span class="icon">➕</span> Manual Entry
+            </button>
+            <button class="tab-btn" data-tab="import">
+                <span class="icon">📂</span> Import
+            </button>
+            <button class="tab-btn" data-tab="reports">
+                <span class="icon">📈</span> Reports
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- Summary Cards -->
+                    <div class="card summary-card">
+                        <h3>Total Hours</h3>
+                        <div class="stat-value" id="totalHours">0</div>
+                        <div class="stat-label">This Month</div>
+                    </div>
+                    <div class="card summary-card">
+                        <h3>Total Entries</h3>
+                        <div class="stat-value" id="totalEntries">0</div>
+                        <div class="stat-label">All Time</div>
+                    </div>
+                    <div class="card summary-card">
+                        <h3>Active Projects</h3>
+                        <div class="stat-value" id="activeProjects">0</div>
+                        <div class="stat-label">Current</div>
+                    </div>
+                    <div class="card summary-card">
+                        <h3>This Week</h3>
+                        <div class="stat-value" id="weekHours">0</div>
+                        <div class="stat-label">Hours</div>
+                    </div>
+
+                    <!-- Recent Entries -->
+                    <div class="card recent-entries">
+                        <h3>Recent Entries</h3>
+                        <div id="recentEntriesList" class="entries-list">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Project Breakdown -->
+                    <div class="card project-breakdown">
+                        <h3>Hours by Project</h3>
+                        <div id="projectBreakdown" class="breakdown-list">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Entries Tab -->
+            <div id="entries" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>All Time Entries</h3>
+                        <div class="filters">
+                            <input type="date" id="filterStartDate" placeholder="Start Date">
+                            <input type="date" id="filterEndDate" placeholder="End Date">
+                            <select id="filterProject">
+                                <option value="">All Projects</option>
+                            </select>
+                            <button id="applyFilters" class="btn btn-secondary">Apply</button>
+                            <button id="clearFilters" class="btn btn-secondary">Clear</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="entriesTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Project</th>
+                                    <th>Title</th>
+                                    <th>Duration</th>
+                                    <th>Type</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="entriesTableBody">
+                                <tr>
+                                    <td colspan="6" class="loading">Loading entries...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Entry Tab -->
+            <div id="manual" class="tab-content">
+                <div class="card">
+                    <h3>Add Manual Time Entry</h3>
+                    <form id="manualEntryForm" class="entry-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="entryDate">Date *</label>
+                                <input type="date" id="entryDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="entryStartTime">Start Time *</label>
+                                <input type="time" id="entryStartTime" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="entryEndTime">End Time</label>
+                                <input type="time" id="entryEndTime">
+                            </div>
+                            <div class="form-group">
+                                <label for="entryDuration">Duration (hours) *</label>
+                                <input type="number" id="entryDuration" step="0.25" min="0.25" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group full-width">
+                                <label for="entryTitle">Meeting/Task Title *</label>
+                                <input type="text" id="entryTitle" placeholder="e.g., Sprint Planning Meeting" required>
+                                <button type="button" id="classifyBtn" class="btn btn-secondary btn-sm">
+                                    🤖 Auto-Classify
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="entryProject">Project/Client *</label>
+                                <input type="text" id="entryProject" placeholder="e.g., AT&T" required list="projectsList">
+                                <datalist id="projectsList"></datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="entryTaskType">Task Type</label>
+                                <select id="entryTaskType">
+                                    <option value="meeting">Meeting</option>
+                                    <option value="development">Development</option>
+                                    <option value="planning">Planning</option>
+                                    <option value="review">Review</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="learning">Learning</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="entryBillable">Billable</label>
+                                <select id="entryBillable">
+                                    <option value="false">No</option>
+                                    <option value="true">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group full-width">
+                                <label for="entryDescription">Description/Notes</label>
+                                <textarea id="entryDescription" rows="3" placeholder="Additional details..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="entryOrganizer">Organizer (optional)</label>
+                                <input type="email" id="entryOrganizer" placeholder="organizer@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="entryAttendees">Attendees (optional)</label>
+                                <input type="text" id="entryAttendees" placeholder="Comma-separated emails">
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <span class="icon">💾</span> Save Entry
+                            </button>
+                            <button type="reset" class="btn btn-secondary">
+                                <span class="icon">🔄</span> Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Import Tab -->
+            <div id="import" class="tab-content">
+                <div class="import-grid">
+                    <!-- CSV/Excel Import -->
+                    <div class="card">
+                        <h3>📊 Import from CSV/Excel</h3>
+                        <p class="help-text">
+                            Upload a CSV or Excel file with your time entries. 
+                            Supported columns: Date, Project/Client Name, Meeting/Project Title, 
+                            Start Time, End Time, Duration (hrs), Notes, Employee(s) Attended Name(s)
+                        </p>
+                        <form id="csvImportForm" class="import-form">
+                            <div class="file-upload">
+                                <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" required>
+                                <label for="csvFile" class="file-label">
+                                    <span class="icon">📁</span>
+                                    <span class="file-text">Choose CSV/Excel file</span>
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <span class="icon">⬆️</span> Import CSV
+                            </button>
+                        </form>
+                        <div id="csvImportResult" class="import-result"></div>
+                    </div>
+
+                    <!-- Calendar Import -->
+                    <div class="card">
+                        <h3>📅 Import from Calendar (ICS)</h3>
+                        <p class="help-text">
+                            Upload an ICS calendar file exported from Outlook, Google Calendar, 
+                            or other calendar applications. Meetings will be automatically classified.
+                        </p>
+                        <form id="icsImportForm" class="import-form">
+                            <div class="file-upload">
+                                <input type="file" id="icsFile" accept=".ics" required>
+                                <label for="icsFile" class="file-label">
+                                    <span class="icon">📁</span>
+                                    <span class="file-text">Choose ICS file</span>
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <span class="icon">⬆️</span> Import Calendar
+                            </button>
+                        </form>
+                        <div id="icsImportResult" class="import-result"></div>
+                    </div>
+
+                    <!-- Import Instructions -->
+                    <div class="card import-help">
+                        <h3>📖 Import Instructions</h3>
+                        <div class="help-section">
+                            <h4>CSV/Excel Format</h4>
+                            <ul>
+                                <li>First row should contain column headers</li>
+                                <li>Date format: YYYY-MM-DD or M/D/YY</li>
+                                <li>Time format: HH:MM AM/PM or HH:MM:SS</li>
+                                <li>Duration: decimal hours (e.g., 1.5 for 90 minutes)</li>
+                            </ul>
+                        </div>
+                        <div class="help-section">
+                            <h4>Calendar (ICS) Files</h4>
+                            <ul>
+                                <li><strong>Outlook:</strong> File → Save Calendar → iCalendar Format (.ics)</li>
+                                <li><strong>Google Calendar:</strong> Settings → Import & Export → Export</li>
+                                <li><strong>Apple Calendar:</strong> File → Export → Export</li>
+                            </ul>
+                        </div>
+                        <div class="help-section">
+                            <h4>Auto-Classification</h4>
+                            <p>
+                                Imported entries are automatically classified based on meeting titles 
+                                and organizers. You can review and edit classifications after import.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Tab -->
+            <div id="reports" class="tab-content">
+                <div class="card">
+                    <h3>📈 Time Reports</h3>
+                    <div class="report-controls">
+                        <div class="form-group">
+                            <label for="reportStartDate">Start Date</label>
+                            <input type="date" id="reportStartDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="reportEndDate">End Date</label>
+                            <input type="date" id="reportEndDate">
+                        </div>
+                        <button id="generateReport" class="btn btn-primary">Generate Report</button>
+                    </div>
+                    
+                    <div id="reportOutput" class="report-output">
+                        <div class="report-section">
+                            <h4>Summary</h4>
+                            <div id="reportSummary" class="report-content">
+                                Select a date range and click "Generate Report"
+                            </div>
+                        </div>
+                        
+                        <div class="report-section">
+                            <h4>By Project</h4>
+                            <div id="reportByProject" class="report-content"></div>
+                        </div>
+                        
+                        <div class="report-section">
+                            <h4>By Day</h4>
+                            <div id="reportByDay" class="report-content"></div>
+                        </div>
+                        
+                        <div class="report-section">
+                            <h4>By Task Type</h4>
+                            <div id="reportByType" class="report-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Time Entry</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="editEntryForm" class="entry-form">
+                    <input type="hidden" id="editEntryId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editDate">Date</label>
+                            <input type="date" id="editDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editDuration">Duration (hours)</label>
+                            <input type="number" id="editDuration" step="0.25" min="0.25" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="editTitle">Title</label>
+                            <input type="text" id="editTitle" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editProject">Project</label>
+                            <input type="text" id="editProject" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTaskType">Task Type</label>
+                            <select id="editTaskType">
+                                <option value="meeting">Meeting</option>
+                                <option value="development">Development</option>
+                                <option value="planning">Planning</option>
+                                <option value="review">Review</option>
+                                <option value="admin">Admin</option>
+                                <option value="learning">Learning</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="editDescription">Description</label>
+                            <textarea id="editDescription" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

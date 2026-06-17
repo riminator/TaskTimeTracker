@@ -225,38 +225,126 @@ app.post('/api/import/csv', upload.single('file'), async (req, res) => {
     const fileContent = await fs.readFile(req.file.path, 'utf-8');
     await fs.unlink(req.file.path); // Clean up uploaded file
     
-    // Parse CSV
-    const lines = fileContent.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    
+    // Parse CSV with support for quoted commas/newlines and UTF-8 BOM
+    const normalizedContent = fileContent.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+    const rows = [];
+    let currentRow = [];
+    let currentValue = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < normalizedContent.length; i++) {
+      const char = normalizedContent[i];
+      const nextChar = normalizedContent[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentValue += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        currentRow.push(currentValue.trim());
+        currentValue = '';
+      } else if (char === '\n' && !inQuotes) {
+        currentRow.push(currentValue.trim());
+        if (currentRow.some(value => value !== '')) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+
+    if (currentValue.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentValue.trim());
+      if (currentRow.some(value => value !== '')) {
+        rows.push(currentRow);
+      }
+    }
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'CSV file is empty or could not be parsed' });
+    }
+
+    const headers = rows[0].map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
+
+    const parseDate = (value) => {
+      if (!value) return new Date().toISOString().split('T')[0];
+
+      const trimmed = value.trim();
+      const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+      if (slashMatch) {
+        let [, month, day, year] = slashMatch;
+        if (year.length === 2) {
+          year = `20${year}`;
+        }
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+
+      return new Date().toISOString().split('T')[0];
+    };
+
+    const to24HourTime = (value) => {
+      if (!value) return null;
+
+      const trimmed = value.trim();
+      const match = trimmed.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+      if (!match) return null;
+
+      let [, hours, minutes, meridiem] = match;
+      let hour = parseInt(hours, 10);
+
+      if (meridiem) {
+        const upper = meridiem.toUpperCase();
+        if (upper === 'PM' && hour !== 12) hour += 12;
+        if (upper === 'AM' && hour === 12) hour = 0;
+      }
+
+      return `${String(hour).padStart(2, '0')}:${minutes}:00`;
+    };
+
     const entries = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g) || [];
-      const row = values.map(v => v.trim().replace(/^"|"$/g, ''));
-      
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+
       if (row.length < 3) continue;
-      
+
       const entry = {};
       headers.forEach((header, index) => {
-        entry[header] = row[index] || '';
+        entry[header] = (row[index] || '').trim();
       });
-      
-      // Convert to internal format
+
+      const parsedDate = parseDate(entry.Date || entry.date);
+      const startClock = to24HourTime(entry['Start Time'] || entry.startTime);
+      const endClock = to24HourTime(entry['End Time'] || entry.endTime);
+
       const normalized = {
-        date: entry.Date || entry.date,
+        date: parsedDate,
         projectCode: entry['Project / Client Name'] || entry['Project/Client Name'] || entry.projectCode || 'Unknown',
         meetingTitle: entry['Meeting/Project Title'] || entry['Meeting / Project Title'] || entry.title || entry.meetingTitle,
-        startTime: entry['Start Time'] || entry.startTime,
-        endTime: entry['End Time'] || entry.endTime,
+        startTime: startClock ? `${parsedDate}T${startClock}Z` : null,
+        endTime: endClock ? `${parsedDate}T${endClock}Z` : null,
         durationMinutes: entry['Duration (hrs)'] ? parseFloat(entry['Duration (hrs)']) * 60 :
-                        entry.durationMinutes || 60,
+                        (entry.durationMinutes ? parseFloat(entry.durationMinutes) : 60),
         description: entry.Notes || entry.description || '',
         attendees: entry['Employee(s) Attended Name(s)'] || entry.attendees || '',
         taskType: 'imported',
         billable: false,
         confidence: 1
       };
-      
+
+      if (!normalized.meetingTitle || Number.isNaN(normalized.durationMinutes)) {
+        continue;
+      }
+
       entries.push(normalized);
     }
     

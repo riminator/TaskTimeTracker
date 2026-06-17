@@ -204,7 +204,11 @@ app.get('/api/summary', async (req, res) => {
 app.get('/api/export/csv', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const csv = await storageConnector.exportToCSV(startDate, endDate);
+    const filters = {};
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
+
+    const csv = await storageConnector.exportToCSV(filters);
     
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=time-entries.csv');
@@ -257,10 +261,12 @@ app.post('/api/import/csv', upload.single('file'), async (req, res) => {
     }
     
     const created = await storageConnector.batchCreateEntries(entries);
-    res.json({ 
-      success: true, 
-      count: created.length,
-      entries: created 
+    res.json({
+      success: true,
+      count: created.summary.successful,
+      entries: created.results.map(result => result.entry),
+      errors: created.errors,
+      summary: created.summary
     });
   } catch (error) {
     logger.error('Error importing CSV:', error);

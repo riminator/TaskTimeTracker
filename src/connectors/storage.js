@@ -1,18 +1,16 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { Pool } from 'pg';
 import logger from '../utils/logger.js';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 /**
- * Local storage connector - stores time entries in JSON files
+ * Postgres storage connector - stores time entries in PostgreSQL
  */
 class StorageConnector {
   constructor() {
-    this.dataDir = path.join(__dirname, '../../data');
-    this.entriesFile = path.join(this.dataDir, 'time-entries.json');
+    this.databaseUrl = process.env.DATABASE_URL;
+    this.pool = null;
     this.initialized = false;
   }
 
@@ -21,23 +19,64 @@ class StorageConnector {
    */
   async initialize() {
     try {
-      // Create data directory if it doesn't exist
-      if (!fs.existsSync(this.dataDir)) {
-        fs.mkdirSync(this.dataDir, { recursive: true, mode: 0o777 });
+      if (!this.databaseUrl) {
+        throw new Error('DATABASE_URL is required for Postgres storage');
       }
 
-      // Create entries file if it doesn't exist
-      if (!fs.existsSync(this.entriesFile)) {
-        fs.writeFileSync(this.entriesFile, JSON.stringify({ entries: [] }, null, 2), { mode: 0o666 });
-      }
+      const sslEnabled = process.env.PGSSL === 'true' || this.databaseUrl.includes('railway.app');
+
+      this.pool = new Pool({
+        connectionString: this.databaseUrl,
+        ssl: sslEnabled ? { rejectUnauthorized: false } : false
+      });
+
+      await this.pool.query('SELECT 1');
+
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS time_entries (
+          id TEXT PRIMARY KEY,
+          project_code TEXT NOT NULL DEFAULT 'GENERAL',
+          task_type TEXT NOT NULL DEFAULT 'meeting',
+          duration_minutes NUMERIC NOT NULL,
+          entry_date DATE NOT NULL,
+          start_time TIMESTAMPTZ,
+          end_time TIMESTAMPTZ,
+          description TEXT,
+          meeting_id TEXT,
+          meeting_title TEXT,
+          billable BOOLEAN NOT NULL DEFAULT FALSE,
+          confidence NUMERIC NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'logged',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ,
+          organizer TEXT,
+          attendees TEXT
+        )
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_time_entries_entry_date
+        ON time_entries (entry_date)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_time_entries_project_code
+        ON time_entries (project_code)
+      `);
+
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_time_entries_billable
+        ON time_entries (billable)
+      `);
 
       this.initialized = true;
-      logger.info('Storage connector initialized', { dataDir: this.dataDir });
+      logger.info('Postgres storage connector initialized');
       return true;
     } catch (error) {
-      logger.error('Failed to initialize storage connector', { error: error.message, stack: error.stack });
-      // Don't throw - allow app to start even if storage init fails
-      console.error('Storage initialization failed:', error);
+      logger.error('Failed to initialize Postgres storage connector', {
+        error: error.message,
+        stack: error.stack
+      });
       this.initialized = false;
       return false;
     }
@@ -47,26 +86,36 @@ class StorageConnector {
    * Ensure storage is initialized
    */
   ensureInitialized() {
-    if (!this.initialized) {
+    if (!this.initialized || !this.pool) {
       throw new Error('Storage connector not initialized. Call initialize() first.');
     }
   }
 
   /**
-   * Read all entries from storage
+   * Normalize DB row to API shape
    */
-  readEntries() {
-    this.ensureInitialized();
-    const data = fs.readFileSync(this.entriesFile, 'utf8');
-    return JSON.parse(data).entries;
-  }
-
-  /**
-   * Write entries to storage
-   */
-  writeEntries(entries) {
-    this.ensureInitialized();
-    fs.writeFileSync(this.entriesFile, JSON.stringify({ entries }, null, 2));
+  mapRow(row) {
+    return {
+      id: row.id,
+      projectCode: row.project_code,
+      taskType: row.task_type,
+      durationMinutes: Number(row.duration_minutes),
+      date: row.entry_date instanceof Date
+        ? row.entry_date.toISOString().split('T')[0]
+        : row.entry_date,
+      startTime: row.start_time ? new Date(row.start_time).toISOString() : null,
+      endTime: row.end_time ? new Date(row.end_time).toISOString() : null,
+      description: row.description,
+      meetingId: row.meeting_id,
+      meetingTitle: row.meeting_title,
+      billable: row.billable,
+      confidence: Number(row.confidence),
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+      status: row.status,
+      organizer: row.organizer,
+      attendees: row.attendees
+    };
   }
 
   /**
@@ -76,26 +125,58 @@ class StorageConnector {
     try {
       this.ensureInitialized();
 
-      const entries = this.readEntries();
-      
       const newEntry = {
         id: this.generateId(),
         projectCode: entry.projectCode || 'GENERAL',
         taskType: entry.taskType || 'meeting',
-        durationMinutes: entry.durationMinutes,
+        durationMinutes: Number(entry.durationMinutes),
         date: entry.date || new Date().toISOString().split('T')[0],
-        startTime: entry.startTime,
-        description: entry.description,
-        meetingId: entry.meetingId,
-        meetingTitle: entry.meetingTitle,
-        billable: entry.billable || false,
-        confidence: entry.confidence || 0,
-        createdAt: new Date().toISOString(),
-        status: 'logged'
+        startTime: entry.startTime || null,
+        endTime: entry.endTime || null,
+        description: entry.description || null,
+        meetingId: entry.meetingId || null,
+        meetingTitle: entry.meetingTitle || null,
+        billable: Boolean(entry.billable),
+        confidence: Number(entry.confidence || 0),
+        status: entry.status || 'logged',
+        organizer: entry.organizer || null,
+        attendees: Array.isArray(entry.attendees)
+          ? entry.attendees.join(', ')
+          : (entry.attendees || null)
       };
 
-      entries.push(newEntry);
-      this.writeEntries(entries);
+      const result = await this.pool.query(
+        `
+          INSERT INTO time_entries (
+            id, project_code, task_type, duration_minutes, entry_date,
+            start_time, end_time, description, meeting_id, meeting_title,
+            billable, confidence, status, organizer, attendees
+          )
+          VALUES (
+            $1, $2, $3, $4, $5,
+            $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15
+          )
+          RETURNING *
+        `,
+        [
+          newEntry.id,
+          newEntry.projectCode,
+          newEntry.taskType,
+          newEntry.durationMinutes,
+          newEntry.date,
+          newEntry.startTime,
+          newEntry.endTime,
+          newEntry.description,
+          newEntry.meetingId,
+          newEntry.meetingTitle,
+          newEntry.billable,
+          newEntry.confidence,
+          newEntry.status,
+          newEntry.organizer,
+          newEntry.attendees
+        ]
+      );
 
       logger.audit('time_entry_created', {
         id: newEntry.id,
@@ -103,7 +184,7 @@ class StorageConnector {
         durationMinutes: newEntry.durationMinutes
       });
 
-      return newEntry;
+      return this.mapRow(result.rows[0]);
     } catch (error) {
       logger.error('Failed to create time entry', { error: error.message });
       throw error;
@@ -117,23 +198,38 @@ class StorageConnector {
     try {
       this.ensureInitialized();
 
-      let entries = this.readEntries();
+      const conditions = [];
+      const values = [];
 
-      // Apply filters
       if (filters.startDate) {
-        entries = entries.filter(e => e.date >= filters.startDate);
+        values.push(filters.startDate);
+        conditions.push(`entry_date >= $${values.length}`);
       }
       if (filters.endDate) {
-        entries = entries.filter(e => e.date <= filters.endDate);
+        values.push(filters.endDate);
+        conditions.push(`entry_date <= $${values.length}`);
       }
       if (filters.projectCode) {
-        entries = entries.filter(e => e.projectCode === filters.projectCode);
+        values.push(filters.projectCode);
+        conditions.push(`project_code = $${values.length}`);
       }
       if (filters.billable !== undefined) {
-        entries = entries.filter(e => e.billable === filters.billable);
+        values.push(filters.billable);
+        conditions.push(`billable = $${values.length}`);
       }
 
-      return entries;
+      const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      const result = await this.pool.query(
+        `
+          SELECT *
+          FROM time_entries
+          ${whereClause}
+          ORDER BY entry_date DESC, created_at DESC
+        `,
+        values
+      );
+
+      return result.rows.map(row => this.mapRow(row));
     } catch (error) {
       logger.error('Failed to get entries', { error: error.message });
       throw error;
@@ -147,14 +243,16 @@ class StorageConnector {
     try {
       this.ensureInitialized();
 
-      const entries = this.readEntries();
-      const entry = entries.find(e => e.id === id);
+      const result = await this.pool.query(
+        'SELECT * FROM time_entries WHERE id = $1',
+        [id]
+      );
 
-      if (!entry) {
+      if (result.rows.length === 0) {
         throw new Error(`Entry not found: ${id}`);
       }
 
-      return entry;
+      return this.mapRow(result.rows[0]);
     } catch (error) {
       logger.error('Failed to get entry', { id, error: error.message });
       throw error;
@@ -168,27 +266,64 @@ class StorageConnector {
     try {
       this.ensureInitialized();
 
-      const entries = this.readEntries();
-      const index = entries.findIndex(e => e.id === id);
+      const existing = await this.getEntry(id);
 
-      if (index === -1) {
-        throw new Error(`Entry not found: ${id}`);
-      }
-
-      entries[index] = {
-        ...entries[index],
-        ...updates,
-        updatedAt: new Date().toISOString()
+      const merged = {
+        ...existing,
+        ...updates
       };
 
-      this.writeEntries(entries);
+      const attendees = Array.isArray(merged.attendees)
+        ? merged.attendees.join(', ')
+        : (merged.attendees || null);
+
+      const result = await this.pool.query(
+        `
+          UPDATE time_entries
+          SET
+            project_code = $2,
+            task_type = $3,
+            duration_minutes = $4,
+            entry_date = $5,
+            start_time = $6,
+            end_time = $7,
+            description = $8,
+            meeting_id = $9,
+            meeting_title = $10,
+            billable = $11,
+            confidence = $12,
+            status = $13,
+            organizer = $14,
+            attendees = $15,
+            updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `,
+        [
+          id,
+          merged.projectCode || 'GENERAL',
+          merged.taskType || 'meeting',
+          Number(merged.durationMinutes),
+          merged.date,
+          merged.startTime || null,
+          merged.endTime || null,
+          merged.description || null,
+          merged.meetingId || null,
+          merged.meetingTitle || null,
+          Boolean(merged.billable),
+          Number(merged.confidence || 0),
+          merged.status || 'logged',
+          merged.organizer || null,
+          attendees
+        ]
+      );
 
       logger.audit('time_entry_updated', {
         id,
         updates: Object.keys(updates)
       });
 
-      return entries[index];
+      return this.mapRow(result.rows[0]);
     } catch (error) {
       logger.error('Failed to update entry', { id, error: error.message });
       throw error;
@@ -202,14 +337,14 @@ class StorageConnector {
     try {
       this.ensureInitialized();
 
-      const entries = this.readEntries();
-      const filtered = entries.filter(e => e.id !== id);
+      const result = await this.pool.query(
+        'DELETE FROM time_entries WHERE id = $1 RETURNING id',
+        [id]
+      );
 
-      if (filtered.length === entries.length) {
+      if (result.rows.length === 0) {
         throw new Error(`Entry not found: ${id}`);
       }
-
-      this.writeEntries(filtered);
 
       logger.audit('time_entry_deleted', { id });
 
@@ -278,14 +413,13 @@ class StorageConnector {
 
       const summary = {
         totalEntries: entries.length,
-        totalMinutes: entries.reduce((sum, e) => sum + e.durationMinutes, 0),
-        billableMinutes: entries.filter(e => e.billable).reduce((sum, e) => sum + e.durationMinutes, 0),
-        nonBillableMinutes: entries.filter(e => !e.billable).reduce((sum, e) => sum + e.durationMinutes, 0),
+        totalMinutes: entries.reduce((sum, e) => sum + Number(e.durationMinutes), 0),
+        billableMinutes: entries.filter(e => e.billable).reduce((sum, e) => sum + Number(e.durationMinutes), 0),
+        nonBillableMinutes: entries.filter(e => !e.billable).reduce((sum, e) => sum + Number(e.durationMinutes), 0),
         byProject: {},
         byDate: {}
       };
 
-      // Group by project
       entries.forEach(entry => {
         if (!summary.byProject[entry.projectCode]) {
           summary.byProject[entry.projectCode] = {
@@ -295,13 +429,12 @@ class StorageConnector {
           };
         }
         summary.byProject[entry.projectCode].count++;
-        summary.byProject[entry.projectCode].minutes += entry.durationMinutes;
+        summary.byProject[entry.projectCode].minutes += Number(entry.durationMinutes);
         if (entry.billable) {
-          summary.byProject[entry.projectCode].billableMinutes += entry.durationMinutes;
+          summary.byProject[entry.projectCode].billableMinutes += Number(entry.durationMinutes);
         }
       });
 
-      // Group by date
       entries.forEach(entry => {
         if (!summary.byDate[entry.date]) {
           summary.byDate[entry.date] = {
@@ -310,7 +443,7 @@ class StorageConnector {
           };
         }
         summary.byDate[entry.date].count++;
-        summary.byDate[entry.date].minutes += entry.durationMinutes;
+        summary.byDate[entry.date].minutes += Number(entry.durationMinutes);
       });
 
       return summary;
@@ -349,20 +482,18 @@ class StorageConnector {
         e.projectCode,
         e.taskType,
         e.durationMinutes,
-        (e.durationMinutes / 60).toFixed(2),
+        (Number(e.durationMinutes) / 60).toFixed(2),
         e.billable ? 'Yes' : 'No',
         e.meetingTitle || '',
         e.description || '',
-        e.confidence.toFixed(2),
+        Number(e.confidence).toFixed(2),
         e.createdAt
       ]);
 
-      const csv = [
+      return [
         headers.join(','),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
       ].join('\n');
-
-      return csv;
     } catch (error) {
       logger.error('Failed to export to CSV', { error: error.message });
       throw error;
@@ -380,9 +511,10 @@ class StorageConnector {
    * Format duration for display
    */
   formatDuration(minutes) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
+    const totalMinutes = Number(minutes);
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+
     if (hours > 0 && mins > 0) {
       return `${hours}h ${mins}m`;
     } else if (hours > 0) {

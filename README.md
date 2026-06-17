@@ -1,6 +1,6 @@
 # Task Time Tracker
 
-A comprehensive time tracking solution with Microsoft Teams integration, automatic classification, and OpenShift deployment support.
+A comprehensive time tracking solution with Microsoft Teams integration, automatic classification, PostgreSQL-backed persistence, and OpenShift/Railway deployment support.
 
 ## 🚀 Quick Start
 
@@ -10,6 +10,13 @@ npm install
 npm run web
 # Access at http://localhost:3000
 ```
+
+### Railway Deployment with Persistent Data
+1. Add a PostgreSQL service in Railway
+2. Set `DATABASE_URL` from Railway Postgres
+3. Set `PGSSL=true`
+4. Deploy the app
+5. Access the public Railway URL
 
 ### Deploy to OpenShift
 ```bash
@@ -26,8 +33,7 @@ TaskTimeTracker/
 ├── web/             # Web application
 ├── openshift/       # Kubernetes manifests
 ├── scripts/         # Deployment scripts
-├── docs/            # Documentation
-└── data/            # Local storage
+└── docs/            # Documentation
 ```
 
 ## 📚 Documentation
@@ -36,6 +42,7 @@ TaskTimeTracker/
 - **[Web UI Guide](docs/WEB_UI_GUIDE.md)** - Using the web interface
 - **[Import Guide](docs/IMPORT_GUIDE.md)** - Import existing data
 - **[OpenShift Deployment](docs/OPENSHIFT_QUICK_DEPLOY.md)** - Deploy to cluster
+- **`.env.example`** - Required environment variables for Railway/Postgres
 
 ## ✨ Features
 
@@ -46,6 +53,7 @@ TaskTimeTracker/
 - 📈 **Reports** - Date-range reports with breakdowns
 - 🔄 **Auto-Classification** - Smart project detection
 - 🌐 **OpenShift Ready** - Enterprise deployment
+- 🐘 **Postgres Persistence** - Data survives refreshes, restarts, and redeploys
 
 ## 🛠️ Commands
 
@@ -71,6 +79,17 @@ npm run dev              # Start with watch mode
 2. Open browser: `http://localhost:3000`
 3. Use tabs: Dashboard, Entries, Manual Entry, Import, Reports
 
+### Railway Deployment
+1. Create a Railway project
+2. Add a PostgreSQL database
+3. Set app variables:
+   - `DATABASE_URL`
+   - `PGSSL=true`
+   - `PORT=3000`
+   - `NODE_ENV=production`
+4. Deploy the application
+5. Access the generated public Railway URL
+
 ### OpenShift Deployment
 1. Login: `oc login --server=https://your-cluster:6443`
 2. Deploy: `./scripts/deploy-to-openshift.sh`
@@ -86,8 +105,9 @@ Edit `config/tracking-rules.json` to customize:
 
 ## 📊 Data Storage
 
-- **Local**: `data/time-entries.json`
-- **OpenShift**: Persistent volumes
+- **Production**: PostgreSQL via `DATABASE_URL`
+- **Railway**: Use Railway Postgres for persistent storage
+- **OpenShift**: Can use persistent volumes or external Postgres
 - **Export**: CSV format
 
 ## 🔐 Security

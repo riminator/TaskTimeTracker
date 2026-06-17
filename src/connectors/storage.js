@@ -23,19 +23,23 @@ class StorageConnector {
     try {
       // Create data directory if it doesn't exist
       if (!fs.existsSync(this.dataDir)) {
-        fs.mkdirSync(this.dataDir, { recursive: true });
+        fs.mkdirSync(this.dataDir, { recursive: true, mode: 0o777 });
       }
 
       // Create entries file if it doesn't exist
       if (!fs.existsSync(this.entriesFile)) {
-        fs.writeFileSync(this.entriesFile, JSON.stringify({ entries: [] }, null, 2));
+        fs.writeFileSync(this.entriesFile, JSON.stringify({ entries: [] }, null, 2), { mode: 0o666 });
       }
 
       this.initialized = true;
       logger.info('Storage connector initialized', { dataDir: this.dataDir });
+      return true;
     } catch (error) {
-      logger.error('Failed to initialize storage connector', { error: error.message });
-      throw error;
+      logger.error('Failed to initialize storage connector', { error: error.message, stack: error.stack });
+      // Don't throw - allow app to start even if storage init fails
+      console.error('Storage initialization failed:', error);
+      this.initialized = false;
+      return false;
     }
   }
 

@@ -15,8 +15,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// Initialize storage
-await storageConnector.initialize();
+// Initialize storage (don't await at top level - let it initialize in background)
+storageConnector.initialize().catch(err => {
+  logger.error('Storage initialization failed, app will continue with limited functionality', err);
+});
 
 // Middleware
 app.use(cors());
@@ -342,9 +344,26 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Task Time Tracker Web UI running on port ${PORT}`);
   console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
+
+// Keep the process alive
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
 
 // Made with Bob

@@ -100,12 +100,14 @@
                             </select>
                             <button id="applyFilters" class="btn btn-secondary">Apply</button>
                             <button id="clearFilters" class="btn btn-secondary">Clear</button>
+                            <button id="bulkDeleteBtn" class="btn btn-danger" style="display:none;">Delete Selected (<span id="selectedCount">0</span>)</button>
                         </div>
                     </div>
                     <div class="table-container">
                         <table id="entriesTable" class="data-table">
                             <thead>
                                 <tr>
+                                    <th><input type="checkbox" id="selectAllEntries" title="Select All"></th>
                                     <th>Date</th>
                                     <th>Project</th>
                                     <th>Title</th>

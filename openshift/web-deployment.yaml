@@ -72,7 +72,5 @@ spec:
           name: timetracker-config
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
 
 # Made with Bob

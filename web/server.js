@@ -114,6 +114,36 @@ app.delete('/api/entries/:id', async (req, res) => {
   }
 });
 
+// Bulk delete entries
+app.post('/api/entries/bulk-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No entry IDs provided' });
+    }
+    
+    let deletedCount = 0;
+    for (const id of ids) {
+      try {
+        await storageConnector.deleteEntry(id);
+        deletedCount++;
+      } catch (error) {
+        logger.warn(`Failed to delete entry ${id}:`, error);
+      }
+    }
+    
+    res.json({
+      success: true,
+      deletedCount,
+      totalRequested: ids.length
+    });
+  } catch (error) {
+    logger.error('Error bulk deleting entries:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get summary statistics
 app.get('/api/summary', async (req, res) => {
   try {
@@ -210,11 +240,11 @@ app.post('/api/import/csv', upload.single('file'), async (req, res) => {
       // Convert to internal format
       const normalized = {
         date: entry.Date || entry.date,
-        projectCode: entry['Project/Client Name'] || entry.projectCode || 'Unknown',
-        meetingTitle: entry['Meeting/Project Title'] || entry.title || entry.meetingTitle,
+        projectCode: entry['Project / Client Name'] || entry['Project/Client Name'] || entry.projectCode || 'Unknown',
+        meetingTitle: entry['Meeting/Project Title'] || entry['Meeting / Project Title'] || entry.title || entry.meetingTitle,
         startTime: entry['Start Time'] || entry.startTime,
         endTime: entry['End Time'] || entry.endTime,
-        durationMinutes: entry['Duration (hrs)'] ? parseFloat(entry['Duration (hrs)']) * 60 : 
+        durationMinutes: entry['Duration (hrs)'] ? parseFloat(entry['Duration (hrs)']) * 60 :
                         entry.durationMinutes || 60,
         description: entry.Notes || entry.description || '',
         attendees: entry['Employee(s) Attended Name(s)'] || entry.attendees || '',

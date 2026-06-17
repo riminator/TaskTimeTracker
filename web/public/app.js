@@ -5,6 +5,7 @@ const API_BASE = '';
 let currentEntries = [];
 let currentProjects = [];
 let editingEntryId = null;
+let selectedEntries = new Set();
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -67,6 +68,10 @@ function initializeEventListeners() {
     // Filters
     document.getElementById('applyFilters').addEventListener('click', applyFilters);
     document.getElementById('clearFilters').addEventListener('click', clearFilters);
+    
+    // Bulk delete
+    document.getElementById('selectAllEntries').addEventListener('change', toggleSelectAll);
+    document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDeleteEntries);
     
     // Reports
     document.getElementById('generateReport').addEventListener('click', generateReport);
@@ -192,6 +197,7 @@ function displayEntries(entries) {
     
     tbody.innerHTML = entries.map(entry => `
         <tr>
+            <td><input type="checkbox" class="entry-checkbox" data-id="${entry.id}" onchange="toggleEntrySelection('${entry.id}')"></td>
             <td>${formatDate(entry.date)}</td>
             <td>${escapeHtml(entry.projectCode)}</td>
             <td>${escapeHtml(entry.meetingTitle || 'Untitled')}</td>
@@ -226,6 +232,65 @@ async function applyFilters() {
 
 function clearFilters() {
     document.getElementById('filterStartDate').value = '';
+function toggleEntrySelection(entryId) {
+    if (selectedEntries.has(entryId)) {
+        selectedEntries.delete(entryId);
+    } else {
+        selectedEntries.add(entryId);
+    }
+    updateBulkDeleteButton();
+}
+
+function toggleSelectAll(e) {
+    const checkboxes = document.querySelectorAll('.entry-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = e.target.checked;
+        const entryId = cb.dataset.id;
+        if (e.target.checked) {
+            selectedEntries.add(entryId);
+        } else {
+            selectedEntries.delete(entryId);
+        }
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const btn = document.getElementById('bulkDeleteBtn');
+    const count = document.getElementById('selectedCount');
+    
+    if (selectedEntries.size > 0) {
+        btn.style.display = 'inline-block';
+        count.textContent = selectedEntries.size;
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+async function bulkDeleteEntries() {
+    if (selectedEntries.size === 0) return;
+    
+    const confirmed = confirm(`Are you sure you want to delete ${selectedEntries.size} entries? This cannot be undone.`);
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetchAPI('/api/entries/bulk-delete', {
+            method: 'POST',
+            body: JSON.stringify({ ids: Array.from(selectedEntries) })
+        });
+        
+        showToast(`Successfully deleted ${response.deletedCount} entries`, 'success');
+        selectedEntries.clear();
+        document.getElementById('selectAllEntries').checked = false;
+        updateBulkDeleteButton();
+        loadEntries();
+        loadDashboard();
+    } catch (error) {
+        console.error('Error bulk deleting entries:', error);
+        showToast('Failed to delete entries', 'error');
+    }
+}
+
     document.getElementById('filterEndDate').value = '';
     document.getElementById('filterProject').value = '';
     loadEntries();

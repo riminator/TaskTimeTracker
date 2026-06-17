@@ -733,3 +733,32 @@ body {
 .mb-3 { margin-bottom: 1.5rem; }
 
 /* Made with Bob */
+
+/* Bulk Delete Styles */
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background: #ba1b23;
+}
+
+.entry-checkbox {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+#selectAllEntries {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}

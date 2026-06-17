@@ -20,6 +20,16 @@ storageConnector.initialize().catch(err => {
   logger.error('Storage initialization failed, app will continue with limited functionality', err);
 });
 
+const appPassword = process.env.APP_PASSWORD || 'password';
+
+const requireWriteAuth = (req, res, next) => {
+  const providedPassword = req.headers['x-app-password'];
+  if (providedPassword !== appPassword) {
+    return res.status(401).json({ error: 'Unauthorized: invalid password' });
+  }
+  next();
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -59,7 +69,7 @@ app.get('/api/entries/:id', async (req, res) => {
 });
 
 // Create new entry
-app.post('/api/entries', async (req, res) => {
+app.post('/api/entries', requireWriteAuth, async (req, res) => {
   try {
     const entry = req.body;
     
@@ -85,7 +95,7 @@ app.post('/api/entries', async (req, res) => {
 });
 
 // Update entry
-app.put('/api/entries/:id', async (req, res) => {
+app.put('/api/entries/:id', requireWriteAuth, async (req, res) => {
   try {
     const updated = await storageConnector.updateEntry(req.params.id, req.body);
     res.json(updated);
@@ -96,7 +106,7 @@ app.put('/api/entries/:id', async (req, res) => {
 });
 
 // Delete entry
-app.delete('/api/entries/:id', async (req, res) => {
+app.delete('/api/entries/:id', requireWriteAuth, async (req, res) => {
   try {
     await storageConnector.deleteEntry(req.params.id);
     res.status(204).send();
@@ -107,7 +117,7 @@ app.delete('/api/entries/:id', async (req, res) => {
 });
 
 // Bulk delete entries
-app.post('/api/entries/bulk-delete', async (req, res) => {
+app.post('/api/entries/bulk-delete', requireWriteAuth, async (req, res) => {
   try {
     const { ids } = req.body;
     
@@ -212,7 +222,7 @@ app.get('/api/export/csv', async (req, res) => {
 });
 
 // Import from CSV/Excel
-app.post('/api/import/csv', upload.single('file'), async (req, res) => {
+app.post('/api/import/csv', requireWriteAuth, upload.single('file'), async (req, res) => {
   try {
     const fileContent = await fs.readFile(req.file.path, 'utf-8');
     await fs.unlink(req.file.path); // Clean up uploaded file
@@ -355,7 +365,7 @@ app.post('/api/import/csv', upload.single('file'), async (req, res) => {
 });
 
 // Import from ICS calendar file
-app.post('/api/import/ics', upload.single('file'), async (req, res) => {
+app.post('/api/import/ics', requireWriteAuth, upload.single('file'), async (req, res) => {
   try {
     const fileContent = await fs.readFile(req.file.path, 'utf-8');
     await fs.unlink(req.file.path);

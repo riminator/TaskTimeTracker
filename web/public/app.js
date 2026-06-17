@@ -6,6 +6,7 @@ let currentEntries = [];
 let currentProjects = [];
 let editingEntryId = null;
 let selectedEntries = new Set();
+let appPassword = localStorage.getItem('appPassword') || '';
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -232,6 +233,11 @@ async function applyFilters() {
 
 function clearFilters() {
     document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterEndDate').value = '';
+    document.getElementById('filterProject').value = '';
+    loadEntries();
+}
+
 function toggleEntrySelection(entryId) {
     if (selectedEntries.has(entryId)) {
         selectedEntries.delete(entryId);
@@ -276,6 +282,7 @@ async function bulkDeleteEntries() {
     try {
         const response = await fetchAPI('/api/entries/bulk-delete', {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: JSON.stringify({ ids: Array.from(selectedEntries) })
         });
         
@@ -289,11 +296,6 @@ async function bulkDeleteEntries() {
         console.error('Error bulk deleting entries:', error);
         showToast('Failed to delete entries', 'error');
     }
-}
-
-    document.getElementById('filterEndDate').value = '';
-    document.getElementById('filterProject').value = '';
-    loadEntries();
 }
 
 // Manual Entry Functions
@@ -322,6 +324,7 @@ async function handleManualEntry(e) {
     try {
         await fetchAPI('/api/entries', {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: JSON.stringify(formData)
         });
         
@@ -394,8 +397,19 @@ async function handleCSVImport(e) {
     try {
         const result = await fetch(`${API_BASE}/api/import/csv`, {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: formData
-        }).then(r => r.json());
+        }).then(async r => {
+            if (r.status === 401) {
+                localStorage.removeItem('appPassword');
+                appPassword = '';
+            }
+            const data = await r.json();
+            if (!r.ok) {
+                throw new Error(data.error || 'Import failed');
+            }
+            return data;
+        });
         
         const resultDiv = document.getElementById('csvImportResult');
         resultDiv.className = 'import-result success';
@@ -430,8 +444,19 @@ async function handleICSImport(e) {
     try {
         const result = await fetch(`${API_BASE}/api/import/ics`, {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: formData
-        }).then(r => r.json());
+        }).then(async r => {
+            if (r.status === 401) {
+                localStorage.removeItem('appPassword');
+                appPassword = '';
+            }
+            const data = await r.json();
+            if (!r.ok) {
+                throw new Error(data.error || 'Import failed');
+            }
+            return data;
+        });
         
         const resultDiv = document.getElementById('icsImportResult');
         resultDiv.className = 'import-result success';
@@ -500,6 +525,7 @@ async function handleEditEntry(e) {
     try {
         await fetchAPI(`/api/entries/${id}`, {
             method: 'PUT',
+            headers: getAuthHeaders(),
             body: JSON.stringify(updates)
         });
         
@@ -519,7 +545,10 @@ async function deleteEntry(id) {
     }
     
     try {
-        await fetchAPI(`/api/entries/${id}`, { method: 'DELETE' });
+        await fetchAPI(`/api/entries/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
         showToast('Entry deleted successfully', 'success');
         loadDashboard();
         loadEntries();
@@ -712,6 +741,24 @@ async function loadProjects() {
 }
 
 // Utility Functions
+function getAppPassword() {
+    if (!appPassword) {
+        const entered = window.prompt('Enter password to modify time entries:', 'password');
+        if (!entered) {
+            throw new Error('Password required');
+        }
+        appPassword = entered;
+        localStorage.setItem('appPassword', appPassword);
+    }
+    return appPassword;
+}
+
+function getAuthHeaders() {
+    return {
+        'x-app-password': getAppPassword()
+    };
+}
+
 async function fetchAPI(url, options = {}) {
     const defaultOptions = {
         headers: {
@@ -719,9 +766,22 @@ async function fetchAPI(url, options = {}) {
         }
     };
     
-    const response = await fetch(`${API_BASE}${url}`, { ...defaultOptions, ...options });
+    const mergedHeaders = {
+        ...defaultOptions.headers,
+        ...(options.headers || {})
+    };
+
+    const response = await fetch(`${API_BASE}${url}`, {
+        ...defaultOptions,
+        ...options,
+        headers: mergedHeaders
+    });
     
     if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem('appPassword');
+            appPassword = '';
+        }
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
         throw new Error(error.error || 'Request failed');
     }

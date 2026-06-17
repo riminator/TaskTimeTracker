@@ -31,21 +31,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/entries', async (req, res) => {
   try {
     const { startDate, endDate, projectCode } = req.query;
-    const entries = await storageConnector.getAllEntries();
-    
-    let filtered = entries;
-    
-    if (startDate) {
-      filtered = filtered.filter(e => e.date >= startDate);
-    }
-    if (endDate) {
-      filtered = filtered.filter(e => e.date <= endDate);
-    }
-    if (projectCode) {
-      filtered = filtered.filter(e => e.projectCode === projectCode);
-    }
-    
-    res.json(filtered);
+    const filters = {};
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
+    if (projectCode) filters.projectCode = projectCode;
+
+    const entries = await storageConnector.getAllEntries(filters);
+    res.json(entries);
   } catch (error) {
     logger.error('Error fetching entries:', error);
     res.status(500).json({ error: error.message });

@@ -101,7 +101,7 @@ class StorageConnector {
       taskType: row.task_type,
       durationMinutes: Number(row.duration_minutes),
       date: row.entry_date instanceof Date
-        ? row.entry_date.toISOString().split('T')[0]
+        ? `${row.entry_date.getFullYear()}-${String(row.entry_date.getMonth() + 1).padStart(2, '0')}-${String(row.entry_date.getDate()).padStart(2, '0')}`
         : row.entry_date,
       startTime: row.start_time ? new Date(row.start_time).toISOString() : null,
       endTime: row.end_time ? new Date(row.end_time).toISOString() : null,

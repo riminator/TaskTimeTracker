@@ -785,7 +785,11 @@ async function fetchAPI(url, options = {}) {
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
         throw new Error(error.error || 'Request failed');
     }
-    
+
+    if (response.status === 204) {
+        return null;
+    }
+
     return response.json();
 }
 
@@ -814,11 +818,13 @@ function showToast(message, type = 'info') {
 }
 
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+    // Parse date-only strings (YYYY-MM-DD) directly to avoid UTC→local timezone shift
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
     });
 }
 

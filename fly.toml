@@ -1,0 +1,33 @@
+# fly.toml — Task Time Tracker
+# Generated for Fly.io deployment
+# https://fly.io/docs/reference/configuration/
+
+app = "task-time-tracker"
+primary_region = "dfw"          # US-South (Dallas); alternatives: ord, iad, lax, lhr, fra, nrt, syd
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV     = "production"
+  PORT         = "3000"
+  # PGSSL is set as a secret — see deploy instructions below
+  # DATABASE_URL is set as a secret — see deploy instructions below
+  # APP_PASSWORD is set as a secret — see deploy instructions below
+
+[http_service]
+  internal_port       = 3000
+  force_https         = true
+  auto_stop_machines  = false   # keep warm — no cold starts
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    hard_limit = 200
+    soft_limit = 150
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

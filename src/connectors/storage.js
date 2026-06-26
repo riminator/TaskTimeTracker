@@ -73,6 +73,12 @@ class StorageConnector {
       logger.info('Postgres storage connector initialized');
       return true;
     } catch (error) {
+      const safeUrl = this.databaseUrl
+        ? this.databaseUrl.replace(/:\/\/[^@]+@/, '://***:***@')
+        : 'not set';
+      console.error('Failed to initialize Postgres storage connector');
+      console.error('DATABASE_URL (redacted):', safeUrl);
+      console.error('Error:', error.message);
       logger.error('Failed to initialize Postgres storage connector', {
         error: error.message,
         stack: error.stack

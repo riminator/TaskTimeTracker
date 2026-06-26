@@ -15,10 +15,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// Initialize storage (don't await at top level - let it initialize in background)
-storageConnector.initialize().catch(err => {
-  logger.error('Storage initialization failed, app will continue with limited functionality', err);
-});
+// Initialize storage before starting the server
+const storageReady = await storageConnector.initialize();
+if (!storageReady) {
+  logger.error('Storage initialization failed — check DATABASE_URL and PGSSL env vars');
+  process.exit(1);
+}
 
 const appPassword = process.env.APP_PASSWORD || 'password';
 

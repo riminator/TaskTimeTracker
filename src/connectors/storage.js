@@ -23,7 +23,11 @@ class StorageConnector {
         throw new Error('DATABASE_URL is required for Postgres storage');
       }
 
-      const sslEnabled = process.env.PGSSL === 'true' || this.databaseUrl.includes('railway.app');
+      const sslEnabled = process.env.PGSSL === 'true'
+        || this.databaseUrl.includes('railway.app')
+        || this.databaseUrl.includes('neon.tech')
+        || this.databaseUrl.includes('render.com')
+        || this.databaseUrl.includes('sslmode=require');
 
       this.pool = new Pool({
         connectionString: this.databaseUrl,

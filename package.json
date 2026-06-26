@@ -1,31 +1,23 @@
 {
-  "name": "teams-timetracker-mcp-server",
+  "name": "task-time-tracker",
   "version": "1.0.0",
-  "description": "MCP server for syncing Microsoft Teams meetings to local time tracking",
-  "main": "src/server.js",
+  "description": "Web app for tracking and reporting time entries with PostgreSQL persistence",
+  "main": "web/server.js",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "web": "node web/server.js",
-    "web:dev": "nodemon web/server.js",
+    "start": "node web/server.js",
+    "dev": "nodemon web/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "mcp",
-    "teams",
     "time-tracking",
-    "microsoft-graph"
+    "postgresql"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@azure/identity": "^4.0.0",
-    "@microsoft/microsoft-graph-client": "^3.0.7",
     "dotenv": "^16.3.1",
     "winston": "^3.11.0",
-    "joi": "^17.11.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "multer": "^1.4.5-lts.1",

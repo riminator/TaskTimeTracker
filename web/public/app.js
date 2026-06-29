@@ -496,6 +496,8 @@ async function editEntry(id) {
         document.getElementById('editEntryId').value = entry.id;
         document.getElementById('editDate').value = entry.date;
         document.getElementById('editDuration').value = (entry.durationMinutes / 60).toFixed(2);
+        document.getElementById('editStartTime').value = entry.startTime ? new Date(entry.startTime).toISOString().slice(11, 16) : '';
+        document.getElementById('editEndTime').value = entry.endTime ? new Date(entry.endTime).toISOString().slice(11, 16) : '';
         document.getElementById('editTitle').value = entry.meetingTitle || '';
         document.getElementById('editProject').value = entry.projectCode;
         document.getElementById('editTaskType').value = entry.taskType;
@@ -513,9 +515,14 @@ async function handleEditEntry(e) {
     e.preventDefault();
     
     const id = document.getElementById('editEntryId').value;
+    const date = document.getElementById('editDate').value;
+    const startTimeVal = document.getElementById('editStartTime').value;
+    const endTimeVal = document.getElementById('editEndTime').value;
     const updates = {
-        date: document.getElementById('editDate').value,
+        date,
         durationMinutes: parseFloat(document.getElementById('editDuration').value) * 60,
+        startTime: startTimeVal ? `${date}T${startTimeVal}:00Z` : null,
+        endTime: endTimeVal ? `${date}T${endTimeVal}:00Z` : null,
         meetingTitle: document.getElementById('editTitle').value,
         projectCode: document.getElementById('editProject').value,
         taskType: document.getElementById('editTaskType').value,
